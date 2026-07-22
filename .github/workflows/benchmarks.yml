@@ -2,11 +2,10 @@ name: Benchmarks
 
 # spell-checker:ignore codspeed dtolnay Swatinem
 
+# Edera fork: manual-only. CodSpeed upload needs a token this fork doesn't
+# have, and benchmark tracking is upstream's concern.
 on:
-  pull_request:
-  push:
-    branches:
-      - '*'
+  workflow_dispatch:
 
 permissions:
   contents: read # to fetch code (actions/checkout)

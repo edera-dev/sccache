@@ -1,5 +1,8 @@
 name: integration-tests
-on: [ push, pull_request ]
+# Edera fork: manual-only. The integration-tests job uploads to codecov
+# with a token this fork doesn't have, and none of these suites gate our
+# releases; keep them runnable on demand without burning runners per push.
+on: [ workflow_dispatch ]
 # If you want to add integration tests for linux-based binary,
 # please, use the following files:
 # - tests/integration/Makefile
