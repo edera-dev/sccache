@@ -810,15 +810,21 @@ impl IntoArg for ArgCrateTypes {
 
 #[derive(Clone, Debug, PartialEq)]
 struct ArgLinkLibrary {
-    kind: String,
+    /// The library kind exactly as specified, or None when no kind was
+    /// given. A kind-less `-l NAME` is NOT equivalent to `-l dylib=NAME`
+    /// to rustc: the verbatim form is a tracked input to the crate hash
+    /// (SVH), so materializing a default here would both alias distinct
+    /// compilations onto one cache key and change the compiled crate's
+    /// hash (and downstream link ordering) when the re-serialized
+    /// arguments are executed.
+    kind: Option<String>,
     name: String,
 }
 impl FromArg for ArgLinkLibrary {
     fn process(arg: OsString) -> ArgParseResult<Self> {
         let (kind, name) = match split_os_string_arg(arg, "=")? {
-            (kind, Some(name)) => (kind, name),
-            // If no kind is specified, the default is dylib.
-            (name, None) => ("dylib".to_owned(), name),
+            (kind, Some(name)) => (Some(kind), name),
+            (name, None) => (None, name),
         };
         Ok(ArgLinkLibrary { kind, name })
     }
@@ -826,11 +832,17 @@ impl FromArg for ArgLinkLibrary {
 impl IntoArg for ArgLinkLibrary {
     fn into_arg_os_string(self) -> OsString {
         let ArgLinkLibrary { kind, name } = self;
-        make_os_string!(kind, "=", name)
+        match kind {
+            Some(kind) => make_os_string!(kind, "=", name),
+            None => make_os_string!(name),
+        }
     }
     fn into_arg_string(self, _transformer: PathTransformerFn<'_>) -> ArgToStringResult {
         let ArgLinkLibrary { kind, name } = self;
-        Ok(format!("{}={}", kind, name))
+        Ok(match kind {
+            Some(kind) => format!("{}={}", kind, name),
+            None => name,
+        })
     }
 }
 
@@ -1097,7 +1109,7 @@ fn parse_arguments(arguments: &[OsString], cwd: &Path) -> CompilerArguments<Pars
                 return CompilerArguments::NotCompilation;
             }
             Some(LinkLibrary(ArgLinkLibrary { kind, name })) => {
-                if kind == "static" {
+                if kind.as_deref() == Some("static") {
                     static_lib_names.push(name.to_owned());
                 }
             }
@@ -2960,6 +2972,39 @@ LLVM version: 15.0.2
             "foo.rs",
             "--out-dir",
             "out"
+        );
+    }
+
+    #[test]
+    fn test_link_library_kind_preserved() {
+        // A kind-less `-l NAME` must survive parse -> re-emission verbatim:
+        // rustc tracks the verbatim form in the crate hash (SVH), so it is
+        // NOT interchangeable with `-l dylib=NAME`. Materializing a default
+        // kind aliased distinct compilations onto one cache key and changed
+        // the compiled crate's SVH (and downstream link ordering) when the
+        // re-serialized arguments were executed.
+        let kindless = ArgLinkLibrary::process("foo".into()).unwrap();
+        assert_eq!(
+            kindless,
+            ArgLinkLibrary {
+                kind: None,
+                name: "foo".into()
+            }
+        );
+        assert_eq!(kindless.into_arg_os_string(), OsString::from("foo"));
+        let dylib = ArgLinkLibrary::process("dylib=foo".into()).unwrap();
+        assert_eq!(
+            dylib,
+            ArgLinkLibrary {
+                kind: Some("dylib".into()),
+                name: "foo".into()
+            }
+        );
+        assert_eq!(dylib.into_arg_os_string(), OsString::from("dylib=foo"));
+        let static_kind = ArgLinkLibrary::process("static=foo".into()).unwrap();
+        assert_eq!(
+            static_kind.into_arg_os_string(),
+            OsString::from("static=foo")
         );
     }
 
