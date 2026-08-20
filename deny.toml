@@ -1,0 +1,11 @@
+# arrayref 0.3.10 was published from a compromised owner account and pulls in
+# proc-macro1, a typosquat of proc-macro2 whose build script downloads and
+# executes a remote binary. All earlier arrayref releases were yanked to
+# pressure consumers into updating to the malicious version. arrayref reaches
+# this tree via blake3; keep it pinned at the version in Cargo.lock and do not
+# update past these bans until crates.io removes the malicious release.
+[bans]
+deny = [
+  { crate = "arrayref@0.3.10", reason = "malicious release from compromised owner account" },
+  { crate = "proc-macro1", reason = "typosquat of proc-macro2; build script executes a remote binary" },
+]

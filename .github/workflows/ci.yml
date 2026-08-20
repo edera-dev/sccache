@@ -46,7 +46,18 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Check feature ${{ matrix.feature }}
-        run: cargo check --no-default-features --features ${{ matrix.feature }}
+        run: cargo check --locked --no-default-features --features ${{ matrix.feature }}
+
+  cargo_deny:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v5
+
+      - name: Check bans
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check bans
 
   toml_format:
     runs-on: ubuntu-latest
